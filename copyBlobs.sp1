@@ -1,0 +1,61 @@
+# Connection string for source storage account
+$sourceConnectionString = Get-AzKeyVaultSecret -VaultName "LielVault" -Name "lielstorageaccount1ConnectionString" -AsPlainText
+
+# Connection string for destination storage account
+$destinationConnectionString = Get-AzKeyVaultSecret -VaultName "LielVault" -Name "lielstorageaccount2ConnectionString" -AsPlainText
+
+# Name of the container in the source storage account
+$sourceContainerName = "source"
+
+# Name of the container in the destination storage account
+$destinationContainerName = "destination"
+
+# Number of blobs to create and copy
+$numBlobs = 100
+
+# Create a storage context for the source storage account
+$sourceContext = New-AzStorageContext -ConnectionString $sourceConnectionString
+
+# Create a storage context for the destination storage account
+$destinationContext = New-AzStorageContext -ConnectionString $destinationConnectionString
+
+# Check if the container already exists
+$containerExists = Get-AzStorageContainer -Name $destinationContainerName -Context $destinationContext
+
+# If the container does not exist, create it
+if (-not $containerExists) {
+    $container = New-AzStorageContainer -Name $destinationContainerName -Context $destinationContext
+    Write-Output "Created container: $destinationContainerName"
+} else {
+    Write-Output "Container already exists: $containerName"
+}
+
+# Generate and upload to account 1
+for ($i = 1; $i -le $numBlobs; $i++) {
+    
+    $fileName = "file$i.txt"
+    New-Item "C:\Temp\$fileName" -ItemType File -Value "this is the content of $fileName." -ErrorAction SilentlyContinue
+    
+    $Blob = @{
+      File             = "C:\Temp\$fileName"
+      Container        = $sourceContainerName
+      Blob             = $fileName
+      Context          = $sourceContext
+    }
+
+    # Upload to storage account 1
+    Set-AzStorageBlobContent @Blob -Force
+    Write-Output "Created file: $fileName"
+
+    # Copy to storage account 1
+    Start-AzStorageBlobCopy `
+      -SrcBlob $fileName `
+      -SrcContainer $sourceContainerName `
+      -DestBlob $fileName `
+      -DestContainer $destinationContainerName `
+      -Context $sourceContext `
+      -DestContext $destinationContext
+}
+
+Write-Output " "
+Write-Output "All blobs copyed successfully."
